@@ -1,35 +1,55 @@
 pipeline {
     agent any
 
+    environment {
+        DOCKER_USER = "haji4747"
+        IMAGE_NAME  = "myapp"
+        IMAGE_TAG   = "${BUILD_NUMBER}"
+        FULL_IMAGE  = "${DOCKER_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
+    }
+
     stages {
-        stage('Checkout') {
+
+        stage('Checkout Code') {
             steps {
-                echo "Code already checked out by Jenkins"
+                git branch: 'main',
+                    url: 'https://github.com/lerockwins/argocd.git'
             }
         }
 
-        stage('Build') {
+        stage('Build Docker Image') {
             steps {
-                echo "Build step here"
-                // Example for Java:
-                // sh 'mvn clean compile'
+                echo "Building Docker Image: ${FULL_IMAGE}"
+                sh "docker build -t ${FULL_IMAGE} ."
             }
         }
 
-        stage('Test') {
+        stage('Login to DockerHub') {
             steps {
-                echo "Test step here"
-                // sh 'mvn test'
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USERNAME',
+                    passwordVariable: 'DOCKER_PASSWORD'
+                )]) {
+                    sh "echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin"
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                echo "Pushing Image to Registry"
+                sh "docker push ${FULL_IMAGE}"
             }
         }
     }
 
     post {
         success {
-            echo 'CI Pipeline Completed Successfully'
+            echo "Docker Image Built & Pushed Successfully: ${FULL_IMAGE}"
         }
         failure {
-            echo 'CI Pipeline Failed'
+            echo "Docker Build or Push Failed"
         }
     }
 }
